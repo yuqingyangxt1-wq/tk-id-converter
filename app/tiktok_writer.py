@@ -364,7 +364,17 @@ _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 #   pair 6 (C13/C14)→ Template C37 (100399 Fit type)
 #   pair 7 (C15/C16)→ Template C38 (100400 Stretch)
 #   pair 8 (C17/C18)→ Template C39 (100401 Care instructions)
-_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {}  # v1.0.11: 空，不再预设
+# v1.0.12: 重新引入 PREFERRED 默认值，但只覆盖 HiddenAttr 第一个值不合适的地方。
+# HiddenAttr 模板为每个类目列第一个合法值，但有些默认项需要根据用户反馈调整：
+#   - 100397 Season: HiddenAttr 默认 Musim semi（春），但用户明确要 Semua musim（所有季节）更通用
+#   - 100393 Neckline: HiddenAttr 默认 V-Neck，但用户要 Cowl Neck（套头圆领）更通用
+# 用户的真实数据是 T-shirt 默认款，"Musim semi"/"V-Neck" 会被印尼后台标红框。
+# 修：把所有 T-shirt 默认填 Semua musim（季节通用）+ Cowl Neck（圆领通用）。
+_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {
+    "product_property/100397": "Semua musim",  # Season - 所有季节（比 Musim semi 通用）
+    "product_property/100393": "Cowl Neck",    # Neckline - 套头圆领（比 V-Neck 通用）
+    # 其他字段让 HiddenAttr 自动选第一个合法值
+}
 
 
 def _get_property_fallbacks(category: str) -> dict[str, str]:
@@ -437,6 +447,11 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
                 if status == "Forbid":
                     # 印尼后台不要这个属性（不展示），留空
                     fb[prop_id] = ""
+                    continue
+                # v1.0.12: PREFERRED 默认值优先（覆盖 HiddenAttr 第一个值）
+                preferred = _PROPERTY_PREFERRED_DEFAULTS.get(prop_id)
+                if preferred:
+                    fb[prop_id] = preferred
                     continue
                 # v1.0.11: 用 HiddenAttr 该列对第一个合法值
                 # col_idx 0-7 映射到 HiddenAttr 9 列对 (C1-C18)
