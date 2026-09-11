@@ -127,43 +127,80 @@ def translate_category(raw: str) -> str:
     return _ID_CATEGORY_TRANSLATION.get(raw, raw)
 
 
-# v1.0.7: 印尼 TikTok Shop 后台要求变体名（property_name_1/2）必须用印尼语，
-# 同时 property_value_1 颜色值保留印尼语原值（Putih/Hitam 等）—— 不再英译。
-# 之前 v1.0.0 错误地把印尼语颜色翻译成英文（Putih→White），导致后台校验报错。
-# 印尼 HiddenAttr 表里 prop_id 标签虽然是英文，但用户上传的变体名/值是用户自填，
-# 后台会用印尼语校验这些字段。
+# v1.0.8: 回归英文变体名（Color/Size）+ 英译颜色值（White/Black）。
+# 之前 v1.0.7 反向操作（变体名本地化 Warna/Ukuran + 颜色值保留印尼语 Putih/Hitam）
+# 是基于"印尼 HiddenAttr 表用印尼语"的猜测，但实际上印尼 HiddenAttr 表完全用英文
+# 存储合法值（"Cotton", "Plain", "V-neck", "Spring" 等），后台校验也用英文。
+# v1.0.8: 回到 v1.0.6 的英文变体名/颜色值策略，但保留 v1.0.7 的两项关键修复：
+#   - 100397 季节本地化（Spring→Musim semi, 等）
+#   - 100400 Care 填值（Hand wash only）
+#   - config.json 自动重置 cod_value="Y" → "N"
+#   - 产品名清理 en dash 字符（"S–3XL" → "S-3XL"），印尼后台不接受 U+2013
 VAR_NAME_TRANSLATIONS: dict[str, str] = {
-    # 中文 → 印尼语
-    "颜色": "Warna",
-    "顏色": "Warna",
-    "尺码": "Ukuran",
-    "尺碼": "Ukuran",
-    "尺寸": "Ukuran",
-    "规格": "Spesifikasi",
-    # 英文 → 印尼语
-    "Color": "Warna",
-    "color": "Warna",
-    "colour": "Warna",
-    "Size": "Ukuran",
-    "size": "Ukuran",
+    # Chinese → English
+    "颜色": "Color",
+    "顏色": "Color",
+    "尺码": "Size",
+    "尺碼": "Size",
+    "尺寸": "Size",
+    "规格": "Specification",
+    # English pass-through (normalize capitalization)
+    "Color": "Color",
+    "color": "Color",
+    "colour": "Color",
+    "Size": "Size",
+    "size": "Size",
 }
 
 
 def _translate_var_name(name: str) -> str:
-    """Translate a variation name to Indonesian for the ID template.
+    """Translate a variation name to English for the ID template.
 
-    Source may have Chinese ('颜色'/'尺码') or English ('Color'/'Size');
-    both are mapped to Indonesian equivalents ('Warna'/'Ukuran').
-    Unknown names are passed through unchanged so the user can fix them
-    manually if needed.
+    v1.0.8: 回到英文变体名（v1.0.6 模式）。印尼 HiddenAttr 表完全用英文存储，
+    后台校验用英文。
     """
     if not name:
         return ""
     key = _clean_str(name)
     if key in VAR_NAME_TRANSLATIONS:
         return VAR_NAME_TRANSLATIONS[key]
-    # Unknown name: pass through (no English fallback anymore — we want Indonesian)
     return key
+
+
+# v1.0.8: 把印尼语颜色翻译成英文（HiddenAttr 表用英文）
+_ID_COLOR_TRANSLATION: dict[str, str] = {
+    "Putih": "White",
+    "Hitam": "Black",
+    "Merah": "Red",
+    "Biru": "Blue",
+    "Hijau": "Green",
+    "Kuning": "Yellow",
+    "Oranye": "Orange",
+    "Ungu": "Purple",
+    "Merah Muda": "Pink",
+    "Abu-abu": "Gray",
+    "Coklat": "Brown",
+    "Krem": "Cream",
+    "Biru Muda": "Light Blue",
+    "Biru Tua": "Dark Blue",
+    "Merah Tua": "Dark Red",
+    "Hijau Tua": "Dark Green",
+    "Polos": "Solid",
+    "Bergaris": "Striped",
+    "Kotak-kotak": "Plaid",
+    "Bercetak": "Printed",
+    "Garis": "Striped",
+}
+
+
+def translate_color(raw: str) -> str:
+    """Translate Indonesian color name to English for property_value_1.
+
+    v1.0.8: 恢复英译（之前 v1.0.7 反向操作错了）。
+    """
+    if not raw:
+        return raw
+    return _ID_COLOR_TRANSLATION.get(raw, raw)
 
 
 def template_path() -> Path:
@@ -316,15 +353,23 @@ def _build_row_for_variant(
     title_prefix = settings["title_prefix"] if settings.get("title_prefix_enabled") else ""
     suffix = copy_suffix if use_suffix else ""
     title = f"{title_prefix}{product.product_name}{suffix}".strip()
+    # v1.0.8: 印尼后台不接受 en dash / em dash 字符（U+2013, U+2014），
+    # 替换为 ASCII " - "。源表产品名常见 "Ukuran S–3XL"，en dash 会导致红框。
+    title = (
+        title.replace("\u2013", " - ")   # en dash
+             .replace("\u2014", " - ")   # em dash
+             .replace("\u2019", "'")      # right single quotation mark
+             .replace("\u201c", '"')      # left double quotation mark
+             .replace("\u201d", '"')      # right double quotation mark
+    )
     # v1.0.2: 印尼后台标题 ≤ ~100 字符更稳；源表产品名常 200+ 字符，截短
     if len(title) > 100:
         title = title[:97].rstrip() + "..."
 
     # Variant-level values
     var1_name = _translate_var_name(product.var1_name or "颜色")
-    # v1.0.7: 印尼后台 property_value_1 接受印尼语原值（Putih/Hitam），
-    # 不再做印尼语→英文翻译（之前 v1.0.0 的 translate_color 是错的，会导致后台红框）。
-    var1_value = _clean_str(variant.var1)
+    # v1.0.8: 恢复英译颜色（v1.0.6 模式）—— 印尼 HiddenAttr 表用英文
+    var1_value = translate_color(_clean_str(variant.var1))
     var2_name = _translate_var_name(product.var2_name or "尺码")
 
     if variant.var2:

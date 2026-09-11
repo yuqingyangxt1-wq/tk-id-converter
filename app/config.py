@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.7"  # ID v1.0.7: 印尼后台变体名/颜色本地化（Color→Warna, Putih/White→Putih）+ 100400 Care 填值（HiddenStyle Forbid 但印尼后台实际必填）
+__version__ = "1.0.8"  # ID v1.0.8: 回归英文变体名/颜色值（v1.0.6 模式）+ 产品名清理 en dash 等特殊字符
 
 
 def get_app_dir() -> Path:
