@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.3"  # ID v1.0.3: 给 product_property/100157-100403 兜底填值（HiddenAttr 必填属性）
+__version__ = "1.0.4"  # ID v1.0.4: size_chart 默认填 GitHub raw URL（之前改成空字符串导致后台拒；印尼后台"Bagan Ukuran"列必填图片）
 
 
 def get_app_dir() -> Path:
@@ -83,9 +83,13 @@ def default_config() -> dict[str, Any]:
                 "Size: please refer to the size chart image before ordering. "
                 "Pengiriman: pesanan dikirim 1-2 hari kerja; estimasi sampai 3-8 hari."
             ),
-            # Size chart URL (留空，让用户填 TikTok Media Center 公开 URL；EasyBoss 短链会被印尼后台拒)
+            # Size chart URL (公开 URL；不能为空——印尼后台"Bagan Ukuran"列必填图片)
+            # 默认用 GitHub raw URL（公开可访问，非 EasyBoss 外链），用户可在 GUI 里替换
             "size_chart_enabled": True,
-            "size_chart_value": "",
+            "size_chart_value": (
+                "https://raw.githubusercontent.com/yuqingyangxt1-wq/"
+                "tk-id-converter/main/assets/default_size_chart.png"
+            ),
             # Parcel
             "parcel_enabled": True,
             "parcel_weight_value": 200,   # grams
