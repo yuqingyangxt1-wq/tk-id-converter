@@ -348,18 +348,23 @@ def _build_row_for_variant(
 _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 
 
-_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {
-    "product_property/100157": "Katun",     # Material - 棉
-    "product_property/100198": "Polos",     # Pattern - 素色
-    "product_property/100397": "Semua musim",  # Season - 四季
-    "product_property/100398": "Dasar",     # Style - 基础
-    "product_property/100399": "Pas",       # Fit - 合身
-    # 100395 Sleeve: 不预设（每产品不同长度）
-    # 100393 Neckline: 不预设（每产品不同领型）
-    # 100400 Stretch (Forbid for T-shirts) → 空
-    # 100401 Washing (无 HiddenAttr pair) → 空
-    # 100403 Waist (Forbid) → 空
-}
+# v1.0.11: 之前硬编码 PREFERRED 默认值错的——T-shirt 在不同 prop_id 的合法值
+# 是 "V-Neck" "Lengan pendek" "Musim semi" "Atletis" "Slim-fit" 等，
+# 不是我之前以为的 "Polos, Semua musim, Dasar, Pas"。
+# PREFERRED 完全删除，让 HiddenAttr 模板告诉你该填什么。
+# HiddenAttr 9 对列 (C1-C18) 对应 Template C31-C39 (prop_id 100157~100401)，
+# Template C40 (100403) 没有 HiddenAttr pair → 留空。
+# 列映射:
+#   pair 0 (C1/C2)  → Template C31 (100157 Material)
+#   pair 1 (C3/C4)  → Template C32 (100198 Pattern)
+#   pair 2 (C5/C6)  → Template C33 (100393 Neckline)
+#   pair 3 (C7/C8)  → Template C34 (100395 Sleeve length)
+#   pair 4 (C9/C10) → Template C35 (100397 Season)
+#   pair 5 (C11/C12)→ Template C36 (100398 Style)
+#   pair 6 (C13/C14)→ Template C37 (100399 Fit type)
+#   pair 7 (C15/C16)→ Template C38 (100400 Stretch)
+#   pair 8 (C17/C18)→ Template C39 (100401 Care instructions)
+_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {}  # v1.0.11: 空，不再预设
 
 
 def _get_property_fallbacks(category: str) -> dict[str, str]:
@@ -426,21 +431,18 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
             fb: dict[str, str] = {}
             for col_idx, prop_id in enumerate(prop_ids):
                 template_col = 31 + col_idx
-                # v1.0.10: 用该类目自己的 HiddenStyle 行状态
+                # v1.0.11: 用该类目自己的 HiddenStyle 行状态
                 status = hidden_style.cell(row=style_row, column=template_col).value
                 status = (str(status or "")).strip()
                 if status == "Forbid":
+                    # 印尼后台不要这个属性（不展示），留空
                     fb[prop_id] = ""
                     continue
-                # 优先用 PREFERRED 默认值
-                preferred = _PROPERTY_PREFERRED_DEFAULTS.get(prop_id)
-                if preferred:
-                    fb[prop_id] = preferred
-                    continue
-                # 用 HiddenAttr 该列对第一个合法值
-                # col_idx 0-8 映射到 HiddenAttr 9 列对 (col_idx=8 → C39 Washing = 无 pair → 空)
-                if col_idx >= 9 or col_idx == 8:
-                    # C39 (100401 Washing) 没有 HiddenAttr pair → 空
+                # v1.0.11: 用 HiddenAttr 该列对第一个合法值
+                # col_idx 0-7 映射到 HiddenAttr 9 列对 (C1-C18)
+                # col_idx=8 → Template C39 (100401 Care) HiddenAttr pair 8 = C17/C18
+                # col_idx=9 → Template C40 (100403) 没有 HiddenAttr pair
+                if col_idx > 8:
                     fb[prop_id] = ""
                     continue
                 cat_col = col_idx * 2 + 1
@@ -449,6 +451,10 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
                     fb[prop_id] = ""
                     continue
                 found_val = ""
+                # HiddenAttr 表里 R 列是该 prop_id 在某类目的合法值列表，
+                # 用 cat 列找匹配当前类目的行，取 val 列第一个非空值。
+                # 注意：HiddenAttr 表有些 pair 没该类目行（如 pair 8 没 T-shirt），
+                # 此时 found_val 留空，由印尼后台视为 Optional 未填。
                 for r2 in range(2, hidden_attr.max_row + 1):
                     if str(hidden_attr.cell(row=r2, column=cat_col).value or "").strip() == cat:
                         v = hidden_attr.cell(row=r2, column=val_col).value

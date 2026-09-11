@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.10"  # ID v1.0.10: 用 TikTok Shop 官方 ID 模板（40列全印尼语）+ 删 shipping_insurance 列 + 印尼语类目/品牌/属性值
+__version__ = "1.0.11"  # ID v1.0.11: 修 prop_id 错位 bug (PREFERRED 默认值删除 + HiddenAttr 9 列对正确映射到 Template C31-C39)  # ID v1.0.10: 用 TikTok Shop 官方 ID 模板（40列全印尼语）+ 删 shipping_insurance 列 + 印尼语类目/品牌/属性值
 
 
 def get_app_dir() -> Path:
