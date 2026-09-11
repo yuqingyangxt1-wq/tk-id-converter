@@ -1,29 +1,25 @@
 """Write product rows into the TikTok Shop Indonesia batch upload template.
 
-The template (assets/batch-product-source.xlsx) has 12 sheets. We only write
-data into the 'Template' sheet starting at row 2, leaving the rest of the
-workbook (Instruction, Image, Example, HiddenStyle, HiddenAttr, etc.)
-untouched so that TikTok's validator still accepts the file.
+The template (assets/batch-product-source.xlsx) is the OFFICIAL empty template
+provided by TikTok Shop Indonesia (40 cols, Indonesian values throughout).
+We only write data into the 'Template' sheet starting at row 2, leaving the
+rest of the workbook (Instruction, Image, Example, HiddenStyle, HiddenAttr,
+Category, Brand, ShippingInsurance, Condition, etc.) untouched.
 
-ROW STRATEGY (v1.0.9 — based on reference EasyBoss output):
+ROW STRATEGY (v1.0.10 — OFFICIAL Indonesia template):
     The EasyBoss source table has one row per (color × size) SKU. We expand
     each SKU into its own TikTok listing row (each row = one variant of one
     product).
 
-    v1.0.9 — BREAKING CHANGE (终于修对了印尼隐藏属性列):
-    1. 不再翻译印尼语颜色 → 英文 (Putih/Hitam 直接透传，参考工具也是用印尼语)
-    2. property_name_1/2 保持英文 "Color" / "Size"
-    3. product_property/* 字段改用参考模板的 HiddenAttr 真实合法值:
-       - 100397 Season: "All seasons" (EasyBoss 默认)
-       - 100398 Style: "Basic"
-       - 100399 Fit: "Fitted"
-       - 100400 Stretch: 空 (Forbid for T-shirts)
-       - 100401 Washing: 空 (T-shirts 在 HiddenAttr 无合法值)
-       - 100403 Waist: 空 (Forbid)
-    4. HiddenStyle 表按每个类目独立行读，不是用 R1 header (R1 是 Waistcoats & Gilets)
-    5. seller_sku 用印尼语颜色名 (YW001-PUTIH-S) 而不是英文
-    6. cod 默认 Y (印尼后台接受，与 EasyBoss 一致)
-    7. size_chart 不默认填 GitHub raw URL (印尼后台只接受 Media Center URL)
+    v1.0.10 — 使用官方 TikTok Shop ID 模板 (替换 EasyBoss 参考):
+    1. Template 40 列 (无 shipping_insurance 列 — 官方模板没有)
+    2. HiddenAttr 所有合法值 = 印尼语 (Katun, Polos, Musim semi, Atletis, ...)
+       之前 v1.0.9 抄 EasyBoss 参考是英文值 (Cotton, Plain, All seasons) — 错！
+       EasyBoss 工具用的是英译版模板，Tiktok 后台要求印尼语值
+    3. Category 用印尼语 ("Atasan Pria/T-shirt" 而不是 "Men's Tops/T-shirts")
+    4. Brand = "Tidak ada merek" (印尼语 "没有品牌" 而不是 "No brand")
+    5. ShippingInsurance = "Opsional" 而不是 "Optional"
+    6. 文件不输出 shipping_insurance 列 (官方模板没有这一列)
 """
 from __future__ import annotations
 
@@ -39,7 +35,7 @@ from .source_reader import Product, Variant
 
 TEMPLATE_FILENAME = "batch-product-source.xlsx"
 
-# The 39 Template-sheet column headers, in order
+# v1.0.10: 40 列官方模板 (无 shipping_insurance)
 TIKTOK_COLUMNS: list[str] = [
     "category",
     "brand",
@@ -61,10 +57,9 @@ TIKTOK_COLUMNS: list[str] = [
     "price",
     "quantity",
     "seller_sku",
-    "minimum_order_quantity",  # v1.0.0: ID 模板新增 C28
+    "minimum_order_quantity",
     "size_chart",
     "cod",
-    "shipping_insurance",  # v1.0.0: ID 模板新增 C31（字面量 Optional / Y / N）
     "product_property/100157",
     "product_property/100198",
     "product_property/100393",
@@ -78,66 +73,57 @@ TIKTOK_COLUMNS: list[str] = [
 ]
 
 
-# v1.0.9: ID 模板要求英文类目名（卖家中心 UI 也是英文）。
-# EasyBoss ID 源表填的是印尼语路径（如 "Pakaian & Pakaian Dalam Pria>Atasan Pria>T-shirt"），
-# 这里映射成 ID 模板/HiddenStyle 要求的英文路径。
+# v1.0.10: 官方 Category 用印尼语路径
 _ID_CATEGORY_TRANSLATION: dict[str, str] = {
     # 男装上衣
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>T-shirt": "Men's Tops/T-shirts",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Kaus Polo": "Men's Tops/Polo Shirts",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Kemeja": "Men's Tops/Shirts",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Rajut": "Men's Tops/Knitwear",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Hoodie & Sweatshirt": "Men's Tops/Hoodies & Sweatshirts",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Rompi & Gilet": "Men's Tops/Waistcoats & Gilets",
-    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Jaket & Mantel": "Men's Tops/Jackets & Coats",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>T-shirt": "Atasan Pria/T-shirt",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Kaus Polo": "Atasan Pria/Kaus Polo",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Kemeja": "Atasan Pria/Kemeja",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Rajut": "Atasan Pria/Pakaian Rajut",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Hoodie & Sweatshirt": "Atasan Pria/Hoodie & Jumper",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Rompi & Gilet": "Atasan Pria/Rompi Waistcoat & Gilet",
+    "Pakaian & Pakaian Dalam Pria>Atasan Pria>Jaket & Mantel": "Atasan Pria/Jaket & Mantel",
     # 男装下装
-    "Pakaian & Pakaian Dalam Pria>Celana Pria>Celana Pendek": "Men's Bottoms/Men's Shorts",
-    "Pakaian & Pakaian Dalam Pria>Celana Pria>Jeans": "Men's Bottoms/Men's Jeans",
-    "Pakaian & Pakaian Dalam Pria>Celana Pria>Celana Panjang": "Men's Bottoms/Men's Pants",
+    "Pakaian & Pakaian Dalam Pria>Celana Pria>Celana Pendek": "Bawahan Pria/Celana pendek",
+    "Pakaian & Pakaian Dalam Pria>Celana Pria>Jeans": "Bawahan Pria/Jeans",
+    "Pakaian & Pakaian Dalam Pria>Celana Pria>Celana Panjang": "Bawahan Pria/Celana Pria",
     # 男士套装
-    "Setelan Pria>Set Pakaian Pria": "Men's Suits & Sets/Men's Clothing Sets",
-    "Setelan Pria>Setelan Pria": "Men's Suits & Sets/Men's Suits",
-    "Setelan Pria>Overall": "Men's Suits & Sets/Overalls",
+    "Setelan Pria>Set Pakaian Pria": "Setelan & Overall Pria/Set Pakaian Pria",
+    "Setelan Pria>Setelan Pria": "Setelan & Overall Pria/Setelan Resmi",
+    "Setelan Pria>Overall": "Setelan & Overall Pria/Overall",
     # 男士内衣袜子
-    "Pakaian Dalam & Kaus Kaki Pria>Pakaian Dalam Pria": "Men's Underwear & Socks/Men's Underwear",
-    "Pakaian Dalam & Kaus Kaki Pria>Tank Top & Pakaian Dalam": "Men's Underwear & Socks/Men's Tanks & Undershirts",
-    "Pakaian Dalam & Kaus Kaki Pria>Pakaian Dalam Hangat": "Men's Underwear & Socks/Men's Thermal Underwear",
-    "Pakaian Dalam & Kaus Kaki Pria>Kaus Kaki": "Men's Underwear & Socks/Socks",
+    "Pakaian Dalam & Kaus Kaki Pria>Pakaian Dalam Pria": "Pakaian Dalam Pria/Pakaian Dalam",
+    "Pakaian Dalam & Kaus Kaki Pria>Tank Top & Pakaian Dalam": "Pakaian Dalam Pria/Pakaian Dalam",
+    "Pakaian Dalam & Kaus Kaki Pria>Pakaian Dalam Hangat": "Pakaian Dalam Pria/Pakaian Dalam Termal",
+    "Pakaian Dalam & Kaus Kaki Pria>Kaus Kaki": "Pakaian Dalam Pria/Kaus kaki",
     # 男士睡衣
-    "Pakaian Tidur & Pakaian Santai Pria>Piyama & Loungewear": "Men's Sleepwear & Loungewear/Pajamas & Loungewear",
-    "Pakaian Tidur & Pakaian Santai Pria>Robe Pria": "Men's Sleepwear & Loungewear/Men's Robes",
-    "Pakaian Tidur & Pakaian Santai Pria>Nightshirt": "Men's Sleepwear & Loungewear/Nightshirts",
-    "Pakaian Tidur & Pakaian Santai Pria>Piyama Pria": "Men's Sleepwear & Loungewear/Men's Pajamas",
+    "Pakaian Tidur & Pakaian Santai Pria>Piyama & Loungewear": "Baju Tidur dan Baju Santai Pria/Piyama",
+    "Pakaian Tidur & Pakaian Santai Pria>Robe Pria": "Baju Tidur dan Baju Santai Pria/Kimono Mandi & Rias",
+    "Pakaian Tidur & Pakaian Santai Pria>Nightshirt": "Baju Tidur dan Baju Santai Pria/Piyama Midi",
+    "Pakaian Tidur & Pakaian Santai Pria>Piyama Pria": "Baju Tidur dan Baju Santai Pria/Piama Terusan Pria",
     # 男士特殊场合
-    "Pakaian Acara Khusus Pria>Kostum": "Men's Special Occasion Clothing/Costumes",
-    "Pakaian Acara Khusus Pria>Pakaian Kerja": "Men's Special Occasion Clothing/Workwear",
-    "Pakaian Acara Khusus Pria>Pakaian Tradisional": "Men's Special Occasion Clothing/Traditional Wear",
+    "Pakaian Acara Khusus Pria>Kostum": "Pakaian Khusus Pria/Kostum & Aksesoris",
+    "Pakaian Acara Khusus Pria>Pakaian Kerja": "Pakaian Khusus Pria/Pakaian Kerja & Seragam",
+    "Pakaian Acara Khusus Pria>Pakaian Tradisional": "Pakaian Khusus Pria/Baju Tradisional",
 }
 
 
 def translate_category(raw: str) -> str:
-    """Translate an EasyBoss ID Indonesian category path into the English
-    category path that ID  template + HiddenStyle + HiddenAttr require.
-
-    Returns the original string if no mapping is found (so that the user can
-    see what was untranslated in the output and fix it manually).
-    """
+    """Translate an EasyBoss ID Indonesian category path into OFFICIAL TikTok
+    Indonesia template Indonesian category name."""
     if not raw:
         return raw
     return _ID_CATEGORY_TRANSLATION.get(raw, raw)
 
 
-# v1.0.9: 变体名保持英文 "Color" / "Size"，property_value_* 保留印尼语原值（Putih/Hitam）
-# 参考 EasyBoss 输出就是这种混合模式。
+# v1.0.10: 变体名保持英文（property_value 用印尼语 color 来源用印尼语）
 VAR_NAME_TRANSLATIONS: dict[str, str] = {
-    # Chinese → English
     "颜色": "Color",
     "顏色": "Color",
     "尺码": "Size",
     "尺碼": "Size",
     "尺寸": "Size",
     "规格": "Specification",
-    # English pass-through (normalize capitalization)
     "Color": "Color",
     "color": "Color",
     "colour": "Color",
@@ -147,10 +133,6 @@ VAR_NAME_TRANSLATIONS: dict[str, str] = {
 
 
 def _translate_var_name(name: str) -> str:
-    """Translate a variation name to English for the ID template.
-
-    v1.0.9: 保持英文（参考 EasyBoss 输出）。
-    """
     if not name:
         return ""
     key = _clean_str(name)
@@ -159,16 +141,11 @@ def _translate_var_name(name: str) -> str:
     return key
 
 
-# v1.0.9 不再翻译颜色。源表的印尼语颜色（Putih/Hitam）直接透传到 property_value_1
-
-
 def template_path() -> Path:
-    """Locate the template inside the app's assets/ directory."""
     return get_assets_dir() / TEMPLATE_FILENAME
 
 
 def _kg_to_grams(v: Any) -> Any:
-    """EasyBoss source stores weight in KG; TikTok wants grams."""
     if v is None or v == "":
         return None
     try:
@@ -185,7 +162,6 @@ def _clean_str(v: Any) -> str:
 
 
 def _to_number(v: Any) -> Any:
-    """Coerce a value to int/float so Excel stores it as a number."""
     if v is None or v == "":
         return None
     if isinstance(v, bool):
@@ -214,13 +190,14 @@ def _resolve_common_fields(
     settings: dict[str, Any],
 ) -> dict[str, Any]:
     """Resolve fields that are shared across all rows of a product."""
+    # v1.0.10: 默认 brand = "Tidak ada merek"（印尼语 "没有品牌"）
     brand = (
         settings["brand_value"]
         if settings.get("brand_enabled") and settings.get("brand_value")
         else (product.brand or "")
     )
     if not brand:
-        brand = "No brand"
+        brand = "Tidak ada merek"
 
     price = (
         settings["price_value"]
@@ -288,11 +265,9 @@ def _build_row_for_variant(
 ) -> OutputRow:
     use_suffix = (copy_idx > 0) or apply_suffix_to_first
 
-    # Title
     title_prefix = settings["title_prefix"] if settings.get("title_prefix_enabled") else ""
     suffix = copy_suffix if use_suffix else ""
     title = f"{title_prefix}{product.product_name}{suffix}".strip()
-    # v1.0.8: 印尼后台不接受 en dash / em dash 字符（U+2013, U+2014）
     title = (
         title.replace("\u2013", " - ")
              .replace("\u2014", " - ")
@@ -303,10 +278,8 @@ def _build_row_for_variant(
     if len(title) > 100:
         title = title[:97].rstrip() + "..."
 
-    # Variant-level values
     var1_name = _translate_var_name(product.var1_name or "颜色")
-    # v1.0.9: 保留印尼语颜色原值 (Putih/Hitam 直接透传，不再翻译)
-    var1_value = _clean_str(variant.var1)
+    var1_value = _clean_str(variant.var1)  # 印尼语颜色原值透传
     var2_name = _translate_var_name(product.var2_name or "尺码")
 
     if variant.var2:
@@ -317,22 +290,18 @@ def _build_row_for_variant(
     else:
         var2_value = ""
 
-    # Images
     var1_image = _clean_str(variant.sku_image)
     images = list(product.images[:9])
     while len(images) < 9:
         images.append("")
     images = [_clean_str(i) for i in images]
 
-    # Price
     price_value = _to_number(variant.price) if variant.price not in (None, "") else _to_number(common["price_override"])
 
-    # Quantity
     quantity_value = (
         _to_number(variant.stock) if variant.stock not in (None, "") else _to_number(common["quantity"])
     )
 
-    # Seller SKU: v1.0.9 用印尼语颜色名 (Putih/Hitam 等) 而不是英文
     import hashlib as _hl
     base_sku = _clean_str(variant.platform_sku)
     if not base_sku:
@@ -368,50 +337,47 @@ def _build_row_for_variant(
     row["size_chart"] = common["size_chart"]
     row["cod"] = common["cod"]
     row["minimum_order_quantity"] = settings.get("minimum_order_quantity_value", 1) or 1
-    row["shipping_insurance"] = (
-        settings.get("shipping_insurance_value", "Optional")
-        if settings.get("shipping_insurance_enabled", True)
-        else ""
-    )
-    # v1.0.9: 读每类目独立行的 HiddenStyle 状态 + PREFERRED 默认值
+    # v1.0.10: 不再写 shipping_insurance (官方模板没有这一列)
     category = common.get("category", "")
     for prop_id, default_val in _get_property_fallbacks(category).items():
         row[prop_id] = default_val
     return row
 
 
-# v1.0.9: 完整重写 _get_property_fallbacks
-# 关键改动:
-# 1. HiddenStyle 表按每个类目独立行 (R1=Waistcoats, R11=T-shirts) — 之前用 R1 header 是错的
-# 2. PREFERRED 默认值 (参考 EasyBoss 输出: All seasons / Basic / Fitted)
-# 3. Forbid 列 → 留空 (T-shirts R11: C39 100400 Stretch / C41 100403 Waist 都是 Forbid)
-# 4. 如果 HiddenAttr 无该类目合法值 → 留空 (T-shirts C40 100401 Washing = 空)
+# v1.0.10: PREFERRED 默认值用印尼语（参考官方 HiddenAttr 表）
 _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 
 
-# v1.0.9: PREFERRED 默认值 — 参考印尼 EasyBoss 工具的输出（更通用的安全值）
 _PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {
-    "product_property/100397": "All seasons",   # Season
-    "product_property/100398": "Basic",          # Style
-    "product_property/100399": "Fitted",         # Fit
+    "product_property/100157": "Katun",     # Material - 棉
+    "product_property/100198": "Polos",     # Pattern - 素色
+    "product_property/100397": "Semua musim",  # Season - 四季
+    "product_property/100398": "Dasar",     # Style - 基础
+    "product_property/100399": "Pas",       # Fit - 合身
+    # 100395 Sleeve: 不预设（每产品不同长度）
+    # 100393 Neckline: 不预设（每产品不同领型）
+    # 100400 Stretch (Forbid for T-shirts) → 空
+    # 100401 Washing (无 HiddenAttr pair) → 空
+    # 100403 Waist (Forbid) → 空
 }
 
 
 def _get_property_fallbacks(category: str) -> dict[str, str]:
     """Return per-category product_property fallback map.
 
-    v1.0.9: 读每类目独立 HiddenStyle 行 + PREFERRED 默认值 + Forbid 留空。
+    v1.0.10: 读每类目独立 HiddenStyle 行 + PREFERRED 默认值 + Forbid 留空。
+    9 个 HiddenAttr 列对 = Template C31-C39 (C40 100403 Waist 在 HiddenAttr 但 T-shirts 无值)
     列映射:
-        Template C32 (100157 Material)  → HiddenAttr C1/C2
-        Template C33 (100198 Pattern)   → HiddenAttr C3/C4
-        Template C34 (100393 Neckline)  → HiddenAttr C5/C6
-        Template C35 (100395 Sleeve)    → HiddenAttr C7/C8
-        Template C36 (100397 Season)    → HiddenAttr C9/C10
-        Template C37 (100398 Style)     → HiddenAttr C11/C12
-        Template C38 (100399 Fit)       → HiddenAttr C13/C14
-        Template C39 (100400 Stretch)   → HiddenAttr C15/C16
-        Template C40 (100401 Washing)   → HiddenAttr C17/C18
-        Template C41 (100403 Waist)     → 无 HiddenAttr 列对 → 始终空
+        Template C31 (100157 Material)   → HiddenAttr C1/C2 (Katun)
+        Template C32 (100198 Pattern)    → HiddenAttr C3/C4 (Polos)
+        Template C33 (100393 Neckline)   → HiddenAttr C5/C6
+        Template C34 (100395 Sleeve)     → HiddenAttr C7/C8
+        Template C35 (100397 Season)     → HiddenAttr C9/C10
+        Template C36 (100398 Style)      → HiddenAttr C11/C12
+        Template C37 (100399 Fit)        → HiddenAttr C13/C14
+        Template C38 (100400 Stretch)    → HiddenAttr C15/C16
+        Template C39 (100401 Washing)    → 无 HiddenAttr pair → 空
+        Template C40 (100403 Waist)      → HiddenAttr C17/C18
     """
     global _PROPERTY_FALLBACK_CACHE
     if _PROPERTY_FALLBACK_CACHE is not None and category in _PROPERTY_FALLBACK_CACHE:
@@ -438,14 +404,15 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
         hidden_style = wb["HiddenStyle"]
         hidden_attr = wb["HiddenAttr"]
 
-        # 1. 取 Template 表头第 32-41 列的 prop_id
+        # 1. 取 Template 表头第 31-40 列的 prop_id（10 个 HiddenAttr 属性列）
+        # 注：v1.0.10 官方模板 prop_id 从 C31 开始（不再有 shipping_insurance C31）
         prop_ids: list[str] = []
-        for c in range(32, 42):
+        for c in range(31, 41):
             v = template.cell(row=1, column=c).value
             if v:
                 prop_ids.append(str(v))
             else:
-                prop_ids.append(f"product_property/{100157 + (c - 32)}")
+                prop_ids.append(f"product_property/{100157 + (c - 31)}")
 
         # 2. 找每个类目在 HiddenStyle 表的独立行
         style_row_for_cat: dict[str, int] = {}
@@ -458,8 +425,8 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
         for cat, style_row in style_row_for_cat.items():
             fb: dict[str, str] = {}
             for col_idx, prop_id in enumerate(prop_ids):
-                template_col = 32 + col_idx
-                # v1.0.9: 用该类目自己的 HiddenStyle 行状态 (不是 R1 header!)
+                template_col = 31 + col_idx
+                # v1.0.10: 用该类目自己的 HiddenStyle 行状态
                 status = hidden_style.cell(row=style_row, column=template_col).value
                 status = (str(status or "")).strip()
                 if status == "Forbid":
@@ -470,9 +437,10 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
                 if preferred:
                     fb[prop_id] = preferred
                     continue
-                # 用 HiddenAttr 该列对第一个合法值 (按当前类目过滤)
-                if col_idx >= 9:
-                    # 第 10 列 (100403 Waist) 没有 HiddenAttr 列对 → 空
+                # 用 HiddenAttr 该列对第一个合法值
+                # col_idx 0-8 映射到 HiddenAttr 9 列对 (col_idx=8 → C39 Washing = 无 pair → 空)
+                if col_idx >= 9 or col_idx == 8:
+                    # C39 (100401 Washing) 没有 HiddenAttr pair → 空
                     fb[prop_id] = ""
                     continue
                 cat_col = col_idx * 2 + 1

@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.9"  # ID v1.0.9: 用参考 EasyBoss 模板 + 印尼语颜色透传 + PREFERRED 属性值（All seasons/Basic/Fitted）+ Forbid 留空
+__version__ = "1.0.10"  # ID v1.0.10: 用 TikTok Shop 官方 ID 模板（40列全印尼语）+ 删 shipping_insurance 列 + 印尼语类目/品牌/属性值
 
 
 def get_app_dir() -> Path:
@@ -52,7 +52,7 @@ def default_config() -> dict[str, Any]:
             "title_prefix": "Kaos Unisex Oversize ",
             # Brand
             "brand_enabled": True,
-            "brand_value": "No brand",
+            "brand_value": "Tidak ada merek",
             # Price (IDR Rp)
             "price_enabled": True,
             "price_value": 115000,
@@ -70,7 +70,7 @@ def default_config() -> dict[str, Any]:
             "random_suffix_length": 3,
             # Category (ID 模板 25 个男装类目，默认 T-shirt)
             "category_enabled": True,
-            "category_value": "Men's Tops/T-shirts",
+            "category_value": "Atasan Pria/T-shirt",
             # Output copies per product
             "output_copies": 2,
             "split_output_files": False,

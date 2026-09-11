@@ -59,11 +59,10 @@ def main():
             print(f"  {col_name}: {dict(c)}")
 
     print("\n=== product_property 10 列值分布 ===")
-    for i in range(32, 42):
-        h_name = TIKTOK_COLUMNS[i - 1]
-        vals = [r.get(h_name, '') for r in all_rows]
+    for prop_id in TIKTOK_COLUMNS[31:41]:  # product_property/100157 ~ 100403
+        vals = [r.get(prop_id, '') for r in all_rows]
         c = Counter(str(v) if v else '<空>' for v in vals)
-        print(f"  {h_name}: {dict(c)}")
+        print(f"  {prop_id}: {dict(c)}")
 
     # 5. 写入测试 xlsx 并 dry-run 验证 seller_sku 唯一
     print("\n=== seller_sku 唯一性 ===")

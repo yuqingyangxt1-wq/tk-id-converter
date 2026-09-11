@@ -1,40 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for the TK Indonesia table converter.
-
-Build:
-    pyinstaller --noconfirm TK-ID-Converter.spec
-"""
+"""PyInstaller spec for the TK Indonesia table converter (macOS local build)."""
 
 from pathlib import Path
 import sys
 
 block_cipher = None
 APP_NAME = "TK-ID-Converter"
-PROJECT_DIR = Path(SPECPATH).resolve()  # set by PyInstaller
+PROJECT_DIR = Path(SPECPATH).resolve()
 
-# Make `app` importable as a package so relative imports inside
-# app/main.py keep working in the frozen exe.
 sys.path.insert(0, str(PROJECT_DIR))
 
-# Entry: invoke the package's __main__ via -m flag.
-# PyInstaller supports the standard '-c' argv form for this.
 a = Analysis(
     [str(PROJECT_DIR / "app" / "__main__.py")],
     pathex=[str(PROJECT_DIR)],
     binaries=[],
-    datas=[],
+    datas=[(str(PROJECT_DIR / "assets"), "assets")],
     hiddenimports=[
-        # Force-include every module in the app package so relative imports
-        # in the frozen exe always resolve.
         "app",
         "app.config",
         "app.source_reader",
         "app.converter",
         "app.product_pool",
         "app.tiktok_writer",
-        # Optional drag-and-drop library. The GUI imports it lazily
-        # inside a try/except, so if it's missing at runtime the exe
-        # still works (just no DnD).
         "tkinterdnd2",
     ],
     hookspath=[],
