@@ -423,7 +423,28 @@ def _build_row_for_variant(
         if settings.get("shipping_insurance_enabled", True)
         else ""
     )
+    # v1.0.3: 给 HiddenAttr 属性 ID 列填入兜底值（解决印尼后台 20 个产品全报错）
+    for prop_id, default_val in DEFAULT_PROPERTY_FALLBACK.items():
+        row[prop_id] = default_val
     return row
+
+
+# v1.0.3: 给 HiddenAttr 属性 ID 列填入 HiddenAttr 表第一行的兜底值
+# TikTok Shop 后台对每个类目有必填的商品属性（数字 ID 100157-100403）。
+# 男装 T-shirt 类目下常见必填：材质/图案/领型/袖长/季节/风格/版型/洗涤等。
+# 这里用 HiddenAttr 表第一行的常见值（兜底），用户可在 GUI 里修改。
+DEFAULT_PROPERTY_FALLBACK: dict[str, str] = {
+    "product_property/100157": "Cotton",          # Material
+    "product_property/100198": "Plain",           # Pattern
+    "product_property/100393": "Round neck",      # Neckline
+    "product_property/100395": "Short sleeve",    # Sleeve length
+    "product_property/100397": "All seasons",     # Season
+    "product_property/100398": "Casual",          # Style
+    "product_property/100399": "Loose-fitting",   # Fit
+    "product_property/100400": "Machine washable", # Care instructions
+    "product_property/100401": "Adult",           # Target audience
+    "product_property/100403": "Knit",            # Fabric construction
+}
 
 
 def build_rows_for_product(

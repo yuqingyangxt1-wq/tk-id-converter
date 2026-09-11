@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.2"  # ID v1.0.2: 修复印尼后台 20 个产品全报错（持续）
+__version__ = "1.0.3"  # ID v1.0.3: 给 product_property/100157-100403 兜底填值（HiddenAttr 必填属性）
 
 
 def get_app_dir() -> Path:
