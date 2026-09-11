@@ -58,8 +58,9 @@ jobs:
           if (Test-Path "$name") { Remove-Item -Recurse -Force "$name" }
           New-Item -ItemType Directory -Path "$name" | Out-Null
           Copy-Item -Recurse "dist\*" -Destination "$name"
-          Compress-Archive -Path "$name\*" -DestinationPath "$name.zip" -Force
-          Get-ChildItem $name, $name.zip | Select-Object Name, Length
+          $zipPath = "${name}.zip"
+          Compress-Archive -Path "$name\*" -DestinationPath $zipPath -Force
+          Get-ChildItem $name, $zipPath | Select-Object Name, Length
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
