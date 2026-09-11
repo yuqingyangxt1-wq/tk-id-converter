@@ -339,6 +339,9 @@ def _build_row_for_variant(
     title_prefix = settings["title_prefix"] if settings.get("title_prefix_enabled") else ""
     suffix = copy_suffix if use_suffix else ""
     title = f"{title_prefix}{product.product_name}{suffix}".strip()
+    # v1.0.2: 印尼后台标题 ≤ ~100 字符更稳；源表产品名常 200+ 字符，截短
+    if len(title) > 100:
+        title = title[:97].rstrip() + "..."
 
     # Variant-level values
     var1_name = _translate_var_name(product.var1_name or "颜色")
@@ -373,17 +376,16 @@ def _build_row_for_variant(
     # Seller SKU: use full platform_sku; if empty (e.g. EasyBoss ID source
     # 不导出 SKU 列), fall back to a stable synthetic sku so each listing
     # still has a unique non-empty identifier.
-    # v1.0.1: ID 源表"平台SKU"列常为 None,直接拼接 product_name-var1-var2 生成可读 SKU
+    # v1.0.1: ID 源表"平台SKU"列常为 None,直接拼接 var1+var2 生成可读 SKU
+    # v1.0.2: 用 6 字符产品 hash + var1+var2 替代长产品名 slug
+    #         (印尼源表产品名 200+ 字符，之前 [:60] 截断会丢掉颜色和尺码，
+    #          导致同产品不同变体 seller_sku 全部重复)
+    import hashlib as _hl
     base_sku = _clean_str(variant.platform_sku)
     if not base_sku:
-        # 用产品名 slug + 颜色 slug + 尺码 拼出唯一 SKU, 保证 seller_sku 非空
-        # 把空格/中文/特殊字符压成安全形式(印尼语字符保留为 utf-8 转写)
-        import re as _re
-        from unicodedata import normalize as _ud
-        slug_src = f"{product.product_name}-{var1_value}-{var2_value}"
-        slug_src = _ud("NFKD", slug_src).encode("ascii", "ignore").decode("ascii")
-        slug = _re.sub(r"[^A-Za-z0-9]+", "-", slug_src).strip("-")[:60] or "SKU"
-        base_sku = slug
+        prod_hash = _hl.md5(product.product_name.encode("utf-8")).hexdigest()[:6].upper()
+        size_part = (f"-{var1_value}" if var1_value else "") + (f"-{var2_value}" if var2_value else "")
+        base_sku = f"ID{prod_hash}{size_part}"
     seller_sku = base_sku + copy_suffix if copy_suffix and use_suffix else base_sku
 
     row: OutputRow = {col: "" for col in TIKTOK_COLUMNS}

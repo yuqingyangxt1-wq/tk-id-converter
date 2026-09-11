@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.1"  # ID v1.0.1: 修复印尼后台 20 个产品全报错 — 不再删除 pre_order_time 列 + 自动生成 seller_sku
+__version__ = "1.0.2"  # ID v1.0.2: 修复印尼后台 20 个产品全报错（持续）
 
 
 def get_app_dir() -> Path:
@@ -59,9 +59,9 @@ def default_config() -> dict[str, Any]:
             # Quantity
             "quantity_enabled": True,
             "quantity_value": 999,
-            # COD
+            # COD (印尼市场 COD 不通用，默认 N)
             "cod_enabled": True,
-            "cod_value": "Y",
+            "cod_value": "N",
             # Fill standard sizes S-3XL into property_value_2
             "fill_sizes_enabled": True,
             "standard_sizes": "S,M,L,XL,2XL,3XL",
@@ -83,12 +83,9 @@ def default_config() -> dict[str, Any]:
                 "Size: please refer to the size chart image before ordering. "
                 "Pengiriman: pesanan dikirim 1-2 hari kerja; estimasi sampai 3-8 hari."
             ),
-            # Size chart URL (默认 GitHub raw，本地化时在 GUI 里替换)
+            # Size chart URL (留空，让用户填 TikTok Media Center 公开 URL；EasyBoss 短链会被印尼后台拒)
             "size_chart_enabled": True,
-            "size_chart_value": (
-                "https://raw.githubusercontent.com/yuqingyangxt1-wq/"
-                "tk-id-converter/main/assets/default_size_chart.png"
-            ),
+            "size_chart_value": "",
             # Parcel
             "parcel_enabled": True,
             "parcel_weight_value": 200,   # grams
@@ -101,7 +98,7 @@ def default_config() -> dict[str, Any]:
             "shipping_insurance_value": "Optional",  # ID 后台用字面量 "Optional"
             # TikTok-specific
             "pre_order_time_value": "",  # 留空 = 无预售（ID 模板允许）
-            "delivery_value": "Default",   # ID 模板 Example 用 "Default"
+            "delivery_value": "",   # ID 模板 delivery 列空 = 跟店铺默认（印尼模板不强制）
         },
         # Source column mapping (override which EasyBoss/源列 maps to what)
         # If a key is empty/None, the reader falls back to auto-detection.
