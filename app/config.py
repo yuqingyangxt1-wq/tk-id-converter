@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.0"  # ID v1.0.0: 初版 / IDR 卢比 / 多 minimum_order_quantity + shipping_insurance 两列
+__version__ = "1.0.1"  # ID v1.0.1: 修复印尼后台 20 个产品全报错 — 不再删除 pre_order_time 列 + 自动生成 seller_sku
 
 
 def get_app_dir() -> Path:

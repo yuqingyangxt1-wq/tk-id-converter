@@ -370,8 +370,20 @@ def _build_row_for_variant(
         _to_number(variant.stock) if variant.stock not in (None, "") else _to_number(common["quantity"])
     )
 
-    # Seller SKU: use full platform_sku (unique per variant)
-    base_sku = _clean_str(variant.platform_sku) or product.master_sku()
+    # Seller SKU: use full platform_sku; if empty (e.g. EasyBoss ID source
+    # 不导出 SKU 列), fall back to a stable synthetic sku so each listing
+    # still has a unique non-empty identifier.
+    # v1.0.1: ID 源表"平台SKU"列常为 None,直接拼接 product_name-var1-var2 生成可读 SKU
+    base_sku = _clean_str(variant.platform_sku)
+    if not base_sku:
+        # 用产品名 slug + 颜色 slug + 尺码 拼出唯一 SKU, 保证 seller_sku 非空
+        # 把空格/中文/特殊字符压成安全形式(印尼语字符保留为 utf-8 转写)
+        import re as _re
+        from unicodedata import normalize as _ud
+        slug_src = f"{product.product_name}-{var1_value}-{var2_value}"
+        slug_src = _ud("NFKD", slug_src).encode("ascii", "ignore").decode("ascii")
+        slug = _re.sub(r"[^A-Za-z0-9]+", "-", slug_src).strip("-")[:60] or "SKU"
+        base_sku = slug
     seller_sku = base_sku + copy_suffix if copy_suffix and use_suffix else base_sku
 
     row: OutputRow = {col: "" for col in TIKTOK_COLUMNS}
@@ -474,14 +486,11 @@ def write_tiktok_xlsx(
         raise ValueError(f"模板文件缺少 'Template' sheet：{template_src}")
     ws = wb["Template"]
 
-    # v3.2.3: pre_order_time is currently disabled (no pre-order workflow).
-    # If it still appears in the template header, drop the column from the
-    # output xlsx entirely so it doesn't show up as a blank header.
+    # v1.0.1: TikTok 卖家中心官方要求 "Don't add or delete any rows or columns"
+    # — 之前 v1.0.0 通过 delete_cols 删除 pre_order_time 会让印尼/泰国/菲律宾
+    # 后台识别模板不完整、整批 20 个产品被拒。现改为保留 pre_order_time 列
+    # 并把它的值设为空（无预售时后台允许空）。
     header_row = [(_clean_str(c.value) or "") for c in ws[1]]
-    if "pre_order_time" in header_row:
-        _col = header_row.index("pre_order_time") + 1
-        ws.delete_cols(_col, 1)
-        header_row = [(_clean_str(c.value) or "") for c in ws[1]]
 
     # Build header→col index from the first row of the Template sheet
     col_idx: dict[str, int] = {}
