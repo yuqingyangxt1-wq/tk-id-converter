@@ -441,6 +441,23 @@ def _build_row_for_variant(
 _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 
 
+# v1.0.6: HiddenAttr 表里的英文值映射到印尼语值
+# 印尼 TikTok Shop 后台对某些字段（如季节）只接受印尼语值，拒绝英文。
+# 例如 "Spring" → "Musim semi"，"All seasons" → "Semua musim"
+# 注意：映射是 prop_id 维度的——只有部分字段需要翻译（不是全部）
+_EN_TO_ID_VALUE_MAP: dict[str, dict[str, str]] = {
+    # 100397 季节（Season）— 印尼站只接受印尼语
+    "product_property/100397": {
+        "Spring": "Musim semi",
+        "Summer": "Musim panas",
+        "Autumn": "Musim gugur",
+        "Winter": "Musim dingin",
+        "All seasons": "Semua musim",
+    },
+    # 如果以后发现其他字段需要本地化，在这里加
+}
+
+
 def _get_property_fallbacks(category: str) -> dict[str, str]:
     """Return per-category product_property fallback map.
 
@@ -518,6 +535,10 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
                         if v:
                             found_val = str(v).strip()
                             break
+                # v1.0.6: HiddenAttr 表里的英文值映射到印尼语值
+                # 印尼后台对某些字段（如季节）拒绝英文值，要求印尼语
+                if found_val and prop_id in _EN_TO_ID_VALUE_MAP:
+                    found_val = _EN_TO_ID_VALUE_MAP[prop_id].get(found_val, found_val)
                 fb[prop_id] = found_val
             _PROPERTY_FALLBACK_CACHE[cat] = fb
     except Exception as e:
