@@ -1,0 +1,13 @@
+.DS_Store
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+.env
+*.log
+config.json
+images/
+产品池/
