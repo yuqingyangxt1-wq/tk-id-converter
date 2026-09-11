@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.8"  # ID v1.0.8: 回归英文变体名/颜色值（v1.0.6 模式）+ 产品名清理 en dash 等特殊字符
+__version__ = "1.0.9"  # ID v1.0.9: 用参考 EasyBoss 模板 + 印尼语颜色透传 + PREFERRED 属性值（All seasons/Basic/Fitted）+ Forbid 留空
 
 
 def get_app_dir() -> Path:
@@ -59,9 +59,9 @@ def default_config() -> dict[str, Any]:
             # Quantity
             "quantity_enabled": True,
             "quantity_value": 999,
-            # COD (印尼市场 COD 不通用，默认 N)
+            # COD (v1.0.9: 印尼市场支持 COD = Y，参考 EasyBoss 输出用 Y)
             "cod_enabled": True,
-            "cod_value": "N",
+            "cod_value": "Y",
             # Fill standard sizes S-3XL into property_value_2
             "fill_sizes_enabled": True,
             "standard_sizes": "S,M,L,XL,2XL,3XL",
@@ -83,13 +83,11 @@ def default_config() -> dict[str, Any]:
                 "Size: please refer to the size chart image before ordering. "
                 "Pengiriman: pesanan dikirim 1-2 hari kerja; estimasi sampai 3-8 hari."
             ),
-            # Size chart URL (公开 URL；不能为空——印尼后台"Bagan Ukuran"列必填图片)
-            # 默认用 GitHub raw URL（公开可访问，非 EasyBoss 外链），用户可在 GUI 里替换
+            # v1.0.9: Size chart 默认空——印尼后台只接受 Media Center URL（https://p16-oec-sg.ibyteimg.com/...），
+            # GitHub raw URL 会失败。用户需要手动上传图片到 TikTok Shop 后台 Media Center，
+            # 然后把返回的 URL 填到这里（GUI 有输入框）。
             "size_chart_enabled": True,
-            "size_chart_value": (
-                "https://raw.githubusercontent.com/yuqingyangxt1-wq/"
-                "tk-id-converter/main/assets/default_size_chart.png"
-            ),
+            "size_chart_value": "",
             # Parcel
             "parcel_enabled": True,
             "parcel_weight_value": 200,   # grams
@@ -146,9 +144,8 @@ def config_path() -> Path:
 def load_config(path: Path | None = None) -> dict[str, Any]:
     """Load config from disk, merging with defaults so new keys appear.
 
-    v1.0.7: 自动修复已知的过期危险值——印尼站 cod_value 旧值 "Y"（早期 PH 工具
-    复制过来的默认值）会被强制改回 "N"。这是为了让用户不需要手动删 config.json
-    也能升级生效。
+    v1.0.9: 不再强制改 cod_value（之前 v1.0.7 的"Y→N"自动重置是错的——
+    印尼市场参考 EasyBoss 输出 cod="Y"）。让 config.json 完全控制。
     """
     p = path or config_path()
     cfg = default_config()
@@ -165,11 +162,6 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         except (OSError, json.JSONDecodeError):
             # Corrupt config → fall back to defaults but don't overwrite
             pass
-
-    # v1.0.7: 印尼站兜底——cod_value 必须是 "N"（印尼 COD 不通用）
-    settings = cfg.setdefault("product_xlsx_settings", {})
-    if settings.get("cod_value") == "Y":
-        settings["cod_value"] = "N"
 
     return cfg
 
