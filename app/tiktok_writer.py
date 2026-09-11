@@ -364,14 +364,17 @@ _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 #   pair 6 (C13/C14)→ Template C37 (100399 Fit type)
 #   pair 7 (C15/C16)→ Template C38 (100400 Stretch)
 #   pair 8 (C17/C18)→ Template C39 (100401 Care instructions)
-# v1.0.13 (回退 v1.0.12): PREFERRED 完全删除。
-# 之前 v1.0.12 试图用 "Semua musim" / "Cowl Neck" 覆盖 HiddenAttr 默认项，
-# 但这俩字符串根本不在印尼后台 100397 Season / 100393 Neckline 的合法下拉
-# 列表里（实际合法值是 Musim semi / V-Neck 等）——后台报 "Select a value from
-# the dropdown menu" 红框。正确做法：恢复 v1.0.11 行为，让 HiddenAttr 模板
-# 决定每个 prop_id 的第一个合法值（Musim semi / V-Neck / Lengan pendek /
-# Atletis / Slim-fit / Cuci Kering），全部都是合法下拉项。
-_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {}
+# v1.0.14: PREFERRED 重新启用，但只填 HiddenAttr 合法下拉列表里实际存在的值。
+# 之前 v1.0.13 我误以为 "Cowl Neck" / "Semua musim" 不在 HiddenAttr 合法列表里
+# （只看了 R2 header 行，没展开 R225-R251 / R41-R45 的同 pair 多类目行）→ 删除
+# PREFERRED 让 HiddenAttr 取首选项 V-Neck / Musim semi，导致用户实际 Cowl Neck
+# 款 T-shirt 的 Neckline 列填错（虽然合法但不匹配产品）。修正：HiddenAttr 已
+# 确认这两个值都合法（R243 Cowl Neck, R45 Semua musim），PREFERRED 优先。
+_PROPERTY_PREFERRED_DEFAULTS: dict[str, str] = {
+    "product_property/100393": "Cowl Neck",     # Neckline — 用户 T-shirt 套头圆领
+    "product_property/100397": "Semua musim",    # Season — 全季节通用
+    # 其他字段让 HiddenAttr 自动选第一个合法值
+}
 
 
 def _get_property_fallbacks(category: str) -> dict[str, str]:

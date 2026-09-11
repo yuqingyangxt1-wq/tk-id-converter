@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.13"  # ID v1.0.13: 回退 v1.0.12 PREFERRED 非法值 — Semua musim/Cowl Neck 不在后台合法下拉列表里，恢复 HiddenAttr 自动选第一个合法值（Musim semi/V-Neck/Atletis/Slim-fit/Cuci Kering）。  # ID v1.0.12: 100397 Season 默认 Semua musim + 100393 Neckline 默认 Cowl Neck  # ID v1.0.11: 修 prop_id 错位 bug (PREFERRED 默认值删除 + HiddenAttr 9 列对正确映射到 Template C31-C39)  # ID v1.0.10: 用 TikTok Shop 官方 ID 模板（40列全印尼语）+ 删 shipping_insurance 列 + 印尼语类目/品牌/属性值
+__version__ = "1.0.14"  # ID v1.0.14: 修正 v1.0.13 误判 — PREFERRED 重新启用，100393 Neckline=Cowl Neck (R243 合法) + 100397 Season=Semua musim (R45 合法)，跟 v1.0.12 一样但 v1.0.12 当时 Season 显示空是部署错位（Actions 502 push 失败桌面 exe 是老版本），不是 PREFERRED 非法。  # ID v1.0.13: 回退 v1.0.12 PREFERRED 非法值 — Semua musim/Cowl Neck 不在后台合法下拉列表里，恢复 HiddenAttr 自动选第一个合法值（Musim semi/V-Neck/Atletis/Slim-fit/Cuci Kering）。  # ID v1.0.12: 100397 Season 默认 Semua musim + 100393 Neckline 默认 Cowl Neck  # ID v1.0.11: 修 prop_id 错位 bug (PREFERRED 默认值删除 + HiddenAttr 9 列对正确映射到 Template C31-C39)  # ID v1.0.10: 用 TikTok Shop 官方 ID 模板（40列全印尼语）+ 删 shipping_insurance 列 + 印尼语类目/品牌/属性值
 
 
 def get_app_dir() -> Path:
