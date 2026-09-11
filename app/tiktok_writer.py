@@ -127,39 +127,43 @@ def translate_category(raw: str) -> str:
     return _ID_CATEGORY_TRANSLATION.get(raw, raw)
 
 
-# v1.0.0: TikTok ID 模板要求 property_name_1 / property_name_2 是英文
-# ("Color" / "Size")，但 property_value_1 保留印尼语原值（Putih / Merah 等）。
-# ID HiddenAttr 用英文存储允许的属性值，所以常见印尼语值也要翻译映射。
-_ID_COLOR_TRANSLATION: dict[str, str] = {
-    "Putih": "White",
-    "Hitam": "Black",
-    "Merah": "Red",
-    "Biru": "Blue",
-    "Hijau": "Green",
-    "Kuning": "Yellow",
-    "Oranye": "Orange",
-    "Ungu": "Purple",
-    "Merah Muda": "Pink",
-    "Abu-abu": "Gray",
-    "Coklat": "Brown",
-    "Krem": "Cream",
-    "Biru Muda": "Light Blue",
-    "Biru Tua": "Dark Blue",
-    "Merah Tua": "Dark Red",
-    "Hijau Tua": "Dark Green",
-    "Polos": "Solid",
-    "Bergaris": "Striped",
-    "Kotak-kotak": "Plaid",
-    "Bercetak": "Printed",
-    "Garis": "Striped",
+# v1.0.7: 印尼 TikTok Shop 后台要求变体名（property_name_1/2）必须用印尼语，
+# 同时 property_value_1 颜色值保留印尼语原值（Putih/Hitam 等）—— 不再英译。
+# 之前 v1.0.0 错误地把印尼语颜色翻译成英文（Putih→White），导致后台校验报错。
+# 印尼 HiddenAttr 表里 prop_id 标签虽然是英文，但用户上传的变体名/值是用户自填，
+# 后台会用印尼语校验这些字段。
+VAR_NAME_TRANSLATIONS: dict[str, str] = {
+    # 中文 → 印尼语
+    "颜色": "Warna",
+    "顏色": "Warna",
+    "尺码": "Ukuran",
+    "尺碼": "Ukuran",
+    "尺寸": "Ukuran",
+    "规格": "Spesifikasi",
+    # 英文 → 印尼语
+    "Color": "Warna",
+    "color": "Warna",
+    "colour": "Warna",
+    "Size": "Ukuran",
+    "size": "Ukuran",
 }
 
 
-def translate_color(raw: str) -> str:
-    """Translate Indonesian color name to English for property_value_1."""
-    if not raw:
-        return raw
-    return _ID_COLOR_TRANSLATION.get(raw, raw)
+def _translate_var_name(name: str) -> str:
+    """Translate a variation name to Indonesian for the ID template.
+
+    Source may have Chinese ('颜色'/'尺码') or English ('Color'/'Size');
+    both are mapped to Indonesian equivalents ('Warna'/'Ukuran').
+    Unknown names are passed through unchanged so the user can fix them
+    manually if needed.
+    """
+    if not name:
+        return ""
+    key = _clean_str(name)
+    if key in VAR_NAME_TRANSLATIONS:
+        return VAR_NAME_TRANSLATIONS[key]
+    # Unknown name: pass through (no English fallback anymore — we want Indonesian)
+    return key
 
 
 def template_path() -> Path:
@@ -210,33 +214,6 @@ def _to_number(v: Any) -> Any:
         return f
     except ValueError:
         return v  # leave as-is
-
-
-# Variation name translations: Chinese → English (TikTok backend expects English).
-VAR_NAME_TRANSLATIONS: dict[str, str] = {
-    # Chinese
-    "颜色": "Color",
-    "顏色": "Color",
-    "尺码": "Size",
-    "尺碼": "Size",
-    "尺寸": "Size",
-    "规格": "Specification",
-    # English-already is a pass-through (we just normalize capitalization)
-    "color": "Color",
-    "colour": "Color",
-    "size": "Size",
-}
-
-
-def _translate_var_name(name: str) -> str:
-    """Translate a variation name (Chinese/English) to TikTok-expected English."""
-    if not name:
-        return ""
-    key = _clean_str(name)
-    if key in VAR_NAME_TRANSLATIONS:
-        return VAR_NAME_TRANSLATIONS[key]
-    # Common case: pascal/title case English → leave as-is
-    return key
 
 
 # A single output row: a dict {col_name: value}
@@ -345,8 +322,9 @@ def _build_row_for_variant(
 
     # Variant-level values
     var1_name = _translate_var_name(product.var1_name or "颜色")
-    # v1.0.0: ID 版 — property_value_1 是颜色（印尼语 → 英文翻译映射）
-    var1_value = translate_color(_clean_str(variant.var1))
+    # v1.0.7: 印尼后台 property_value_1 接受印尼语原值（Putih/Hitam），
+    # 不再做印尼语→英文翻译（之前 v1.0.0 的 translate_color 是错的，会导致后台红框）。
+    var1_value = _clean_str(variant.var1)
     var2_name = _translate_var_name(product.var2_name or "尺码")
 
     if variant.var2:
@@ -434,10 +412,12 @@ def _build_row_for_variant(
 
 
 # v1.0.5: 根据 HiddenStyle + HiddenAttr 表动态计算每个类目的 product_property/* 列兜底值
-# 之前 v1.0.3 写死 8 列 HiddenAttr 值（如 "Machine washable"），但 HiddenStyle 表里 Men's T-shirts 类目
-# 把 100400 (Care) 和 100403 (Waist) 标为 "Forbid"，填了就被印尼后台整批拒。
-# 同时 100401 (Target audience) 在 HiddenAttr 表里实际是 Jeans 类目的 Waist，T-shirts 不适用。
-# 现在从 HiddenStyle 表读状态 + HiddenAttr 表读合法值，自动决定填什么。
+# v1.0.7: 修正逻辑——不再死守 HiddenStyle 表的 "Forbid" 标记。
+# 实测：印尼 TikTok Shop 后台对 HiddenStyle 标 "Forbid" 的列（如 100400 Care）
+# 仍然要求必填，留空被红框报 "Instruksi Mencuci" 错误。
+# 安全策略：优先填 HiddenAttr 表里的第一个合法值；只在 HiddenAttr 表里没有该类目
+# 适用值时才留空。这样既保证字段非空，又避免硬塞不相关类目的值。
+# （印尼 HiddenStyle 表可能是国际版老模板，与印尼后台校验逻辑不同步）
 _PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
 
 
@@ -463,8 +443,9 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
 
     Reads the bundled template once and caches the result.
     Keys are prop_ids like 'product_property/100157'; values are HiddenAttr legal
-    values, or '' (empty string) when the column is Forbid or has no legal
-    values for this category.
+    values, or '' (empty string) when HiddenAttr has no legal values for this category.
+
+    v1.0.7: 不再因 HiddenStyle 标 Forbid 而留空——印尼后台实际需要这些字段填值。
     """
     global _PROPERTY_FALLBACK_CACHE
     if _PROPERTY_FALLBACK_CACHE is not None and category in _PROPERTY_FALLBACK_CACHE:
@@ -513,18 +494,10 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
             fb: dict[str, str] = {}
             for col_idx, prop_id in enumerate(prop_ids):
                 template_col = 32 + col_idx
-                status = hidden_style.cell(row=r, column=template_col).value
-                status = (status or "").strip()
-                if status == "Forbid":
-                    # 后台明确禁止填
-                    fb[prop_id] = ""
-                    continue
-                # Optional / Mandatory → 从 HiddenAttr 表读该类目的合法值
-                # HiddenAttr 表 9 对列（18 列）对应 9 个属性，
-                # HiddenStyle 第 10 列（template_col=41）没有 HiddenAttr 数据。
-                col_pair = col_idx  # 0-9
-                cat_col = col_pair * 2 + 1
-                val_col = col_pair * 2 + 2
+                # v1.0.7: 忽略 HiddenStyle 状态——印尼后台校验与模板 HiddenStyle 不同步
+                # Optional / Mandatory / Forbid 统一处理：填 HiddenAttr 第一个合法值
+                cat_col = col_idx * 2 + 1
+                val_col = col_idx * 2 + 2
                 if cat_col > hidden_attr.max_column or val_col > hidden_attr.max_column:
                     fb[prop_id] = ""
                     continue
@@ -536,7 +509,6 @@ def _get_property_fallbacks(category: str) -> dict[str, str]:
                             found_val = str(v).strip()
                             break
                 # v1.0.6: HiddenAttr 表里的英文值映射到印尼语值
-                # 印尼后台对某些字段（如季节）拒绝英文值，要求印尼语
                 if found_val and prop_id in _EN_TO_ID_VALUE_MAP:
                     found_val = _EN_TO_ID_VALUE_MAP[prop_id].get(found_val, found_val)
                 fb[prop_id] = found_val

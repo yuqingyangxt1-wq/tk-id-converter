@@ -9,7 +9,7 @@ from typing import Any
 
 
 APP_NAME = "TK印尼表格转化工具"
-__version__ = "1.0.4"  # ID v1.0.4: size_chart 默认填 GitHub raw URL（之前改成空字符串导致后台拒；印尼后台"Bagan Ukuran"列必填图片）
+__version__ = "1.0.7"  # ID v1.0.7: 印尼后台变体名/颜色本地化（Color→Warna, Putih/White→Putih）+ 100400 Care 填值（HiddenStyle Forbid 但印尼后台实际必填）
 
 
 def get_app_dir() -> Path:
@@ -144,7 +144,12 @@ def config_path() -> Path:
 
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
-    """Load config from disk, merging with defaults so new keys appear."""
+    """Load config from disk, merging with defaults so new keys appear.
+
+    v1.0.7: 自动修复已知的过期危险值——印尼站 cod_value 旧值 "Y"（早期 PH 工具
+    复制过来的默认值）会被强制改回 "N"。这是为了让用户不需要手动删 config.json
+    也能升级生效。
+    """
     p = path or config_path()
     cfg = default_config()
     if p.exists():
@@ -160,6 +165,12 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         except (OSError, json.JSONDecodeError):
             # Corrupt config → fall back to defaults but don't overwrite
             pass
+
+    # v1.0.7: 印尼站兜底——cod_value 必须是 "N"（印尼 COD 不通用）
+    settings = cfg.setdefault("product_xlsx_settings", {})
+    if settings.get("cod_value") == "Y":
+        settings["cod_value"] = "N"
+
     return cfg
 
 
