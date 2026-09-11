@@ -59,7 +59,9 @@ jobs:
           New-Item -ItemType Directory -Path "$name" | Out-Null
           Copy-Item -Recurse "dist\*" -Destination "$name"
           $zipPath = "${name}.zip"
-          Compress-Archive -Path "$name\*" -DestinationPath $zipPath -Force
+          # Compress the whole $name directory (not "$name\*") so the zip
+          # preserves the "TK-ID-Converter/" top-level folder name.
+          Compress-Archive -Path "$name" -DestinationPath $zipPath -Force
           Get-ChildItem $name, $zipPath | Select-Object Name, Length
 
       - name: Upload build artifact
