@@ -49,21 +49,22 @@ jobs:
           copy /Y "assets\batch-product-source.xlsx" "dist\assets\"
           if exist "assets\default_size_chart.png" copy /Y "assets\default_size_chart.png" "dist\assets\"
 
-      - name: Zip the release
+      - name: Zip the release (single-layer for easy unzip)
         shell: pwsh
         run: |
-          $name = "TK-ID-Converter_windows"
-          Compress-Archive -Path "dist\*" -DestinationPath "$name.zip" -Force
-          Get-ChildItem dist, *.zip | Select-Object Name, Length
+          $name = "TK-ID-Converter"
+          # Wrap dist/ into a single-folder zip so Mac users can unzip once
+          # and run the exe directly (no nested archive to extract again).
+          if (Test-Path "$name") { Remove-Item -Recurse -Force "$name" }
+          New-Item -ItemType Directory -Path "$name" | Out-Null
+          Copy-Item -Recurse "dist\*" -Destination "$name"
+          Compress-Archive -Path "$name\*" -DestinationPath "$name.zip" -Force
+          Get-ChildItem $name, $name.zip | Select-Object Name, Length
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: TK-ID-Converter-windows
-          path: |
-            dist/TK-ID-Converter.exe
-            dist/assets/batch-product-source.xlsx
-            dist/assets/default_size_chart.png
-            TK-ID-Converter_windows.zip
+          path: TK-ID-Converter.zip
           if-no-files-found: error
           retention-days: 30
