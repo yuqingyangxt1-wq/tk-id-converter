@@ -423,28 +423,109 @@ def _build_row_for_variant(
         if settings.get("shipping_insurance_enabled", True)
         else ""
     )
-    # v1.0.3: 给 HiddenAttr 属性 ID 列填入兜底值（解决印尼后台 20 个产品全报错）
-    for prop_id, default_val in DEFAULT_PROPERTY_FALLBACK.items():
+    # v1.0.5: 给 HiddenAttr 属性 ID 列填入按 HiddenStyle/HiddenAttr 表动态计算的兜底值
+    # - HiddenStyle 表某列是 "Forbid" → 留空（填了就被后台拒）
+    # - HiddenAttr 表该类目下没有合法值 → 留空
+    # - 否则填 HiddenAttr 表该类目的第一个合法值
+    category = common.get("category", "")
+    for prop_id, default_val in _get_property_fallbacks(category).items():
         row[prop_id] = default_val
     return row
 
 
-# v1.0.3: 给 HiddenAttr 属性 ID 列填入 HiddenAttr 表第一行的兜底值
-# TikTok Shop 后台对每个类目有必填的商品属性（数字 ID 100157-100403）。
-# 男装 T-shirt 类目下常见必填：材质/图案/领型/袖长/季节/风格/版型/洗涤等。
-# 这里用 HiddenAttr 表第一行的常见值（兜底），用户可在 GUI 里修改。
-DEFAULT_PROPERTY_FALLBACK: dict[str, str] = {
-    "product_property/100157": "Cotton",          # Material
-    "product_property/100198": "Plain",           # Pattern
-    "product_property/100393": "Round neck",      # Neckline
-    "product_property/100395": "Short sleeve",    # Sleeve length
-    "product_property/100397": "All seasons",     # Season
-    "product_property/100398": "Casual",          # Style
-    "product_property/100399": "Loose-fitting",   # Fit
-    "product_property/100400": "Machine washable", # Care instructions
-    "product_property/100401": "Adult",           # Target audience
-    "product_property/100403": "Knit",            # Fabric construction
-}
+# v1.0.5: 根据 HiddenStyle + HiddenAttr 表动态计算每个类目的 product_property/* 列兜底值
+# 之前 v1.0.3 写死 8 列 HiddenAttr 值（如 "Machine washable"），但 HiddenStyle 表里 Men's T-shirts 类目
+# 把 100400 (Care) 和 100403 (Waist) 标为 "Forbid"，填了就被印尼后台整批拒。
+# 同时 100401 (Target audience) 在 HiddenAttr 表里实际是 Jeans 类目的 Waist，T-shirts 不适用。
+# 现在从 HiddenStyle 表读状态 + HiddenAttr 表读合法值，自动决定填什么。
+_PROPERTY_FALLBACK_CACHE: dict[str, dict[str, str]] | None = None
+
+
+def _get_property_fallbacks(category: str) -> dict[str, str]:
+    """Return per-category product_property fallback map.
+
+    Reads the bundled template once and caches the result.
+    Keys are prop_ids like 'product_property/100157'; values are HiddenAttr legal
+    values, or '' (empty string) when the column is Forbid or has no legal
+    values for this category.
+    """
+    global _PROPERTY_FALLBACK_CACHE
+    if _PROPERTY_FALLBACK_CACHE is not None and category in _PROPERTY_FALLBACK_CACHE:
+        return _PROPERTY_FALLBACK_CACHE[category]
+
+    from pathlib import Path
+    import openpyxl
+
+    assets_dir = Path(__file__).resolve().parent.parent / "assets"
+    template_path = assets_dir / "batch-product-source.xlsx"
+    if not template_path.exists():
+        # 在 PyInstaller 打包后，assets 应该在 exe 同目录
+        import sys
+        if getattr(sys, "frozen", False):
+            template_path = Path(sys.executable).resolve().parent / "assets" / "batch-product-source.xlsx"
+
+    if _PROPERTY_FALLBACK_CACHE is None:
+        _PROPERTY_FALLBACK_CACHE = {}
+
+    if not template_path.exists():
+        # 没找到模板时返回空 map（保持原行为 = 不填）
+        return {}
+
+    try:
+        wb = openpyxl.load_workbook(template_path, data_only=True)
+        template = wb["Template"]
+        hidden_style = wb["HiddenStyle"]
+        hidden_attr = wb["HiddenAttr"]
+
+        # 1. 取 Template 表头第 32-41 列的 prop_id（10 个 HiddenAttr 属性列）
+        prop_ids: list[str] = []
+        for c in range(32, 42):
+            v = template.cell(row=1, column=c).value
+            if v:
+                prop_ids.append(str(v))
+            else:
+                # 表头空：用列号推导
+                prop_ids.append(f"product_property/{100157 + (c - 32)}")
+
+        # 2. 对 HiddenStyle 表的每个类目行（R2-R25）
+        for r in range(2, hidden_style.max_row + 1):
+            cat = hidden_style.cell(row=r, column=1).value
+            if not cat:
+                continue
+            cat = str(cat).strip()
+            fb: dict[str, str] = {}
+            for col_idx, prop_id in enumerate(prop_ids):
+                template_col = 32 + col_idx
+                status = hidden_style.cell(row=r, column=template_col).value
+                status = (status or "").strip()
+                if status == "Forbid":
+                    # 后台明确禁止填
+                    fb[prop_id] = ""
+                    continue
+                # Optional / Mandatory → 从 HiddenAttr 表读该类目的合法值
+                # HiddenAttr 表 9 对列（18 列）对应 9 个属性，
+                # HiddenStyle 第 10 列（template_col=41）没有 HiddenAttr 数据。
+                col_pair = col_idx  # 0-9
+                cat_col = col_pair * 2 + 1
+                val_col = col_pair * 2 + 2
+                if cat_col > hidden_attr.max_column or val_col > hidden_attr.max_column:
+                    fb[prop_id] = ""
+                    continue
+                found_val = ""
+                for r2 in range(1, hidden_attr.max_row + 1):
+                    if str(hidden_attr.cell(row=r2, column=cat_col).value or "").strip() == cat:
+                        v = hidden_attr.cell(row=r2, column=val_col).value
+                        if v:
+                            found_val = str(v).strip()
+                            break
+                fb[prop_id] = found_val
+            _PROPERTY_FALLBACK_CACHE[cat] = fb
+    except Exception as e:
+        # 读模板失败时返回空 map（避免阻塞转换）
+        print(f"[_get_property_fallbacks] 读取模板失败: {e}", file=__import__("sys").stderr)
+        return {}
+
+    return _PROPERTY_FALLBACK_CACHE.get(category, {})
 
 
 def build_rows_for_product(
