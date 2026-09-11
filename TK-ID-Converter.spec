@@ -1,15 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for the TK Philippines table converter.
+"""PyInstaller spec for the TK Indonesia table converter.
 
 Build:
-    pyinstaller --noconfirm TK-PH-Converter.spec
+    pyinstaller --noconfirm TK-ID-Converter.spec
 """
 
 from pathlib import Path
 import sys
 
 block_cipher = None
-APP_NAME = "TK-PH-Converter"
+APP_NAME = "TK-ID-Converter"
 PROJECT_DIR = Path(SPECPATH).resolve()  # set by PyInstaller
 
 # Make `app` importable as a package so relative imports inside
